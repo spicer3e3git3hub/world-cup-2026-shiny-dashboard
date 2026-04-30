@@ -1,3 +1,4 @@
+🔗 **Live Dashboard:** https://evan-spicer.shinyapps.io/world-cup-clean
 # World Cup 2026 Shiny Dashboard
 
 Interactive dashboard built in R Shiny to explore FIFA World Cup data.
