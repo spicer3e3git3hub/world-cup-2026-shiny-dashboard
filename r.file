@@ -1,0 +1,563 @@
+library(shiny)
+library(ggplot2)
+library(DT)
+library(shinythemes)
+library(scales)
+
+# DATA --------------------------------------------------------------------
+
+teams_df <- data.frame(
+  Group = rep(LETTERS[1:12], each = 4),
+  Team = c(
+    "Mexico", "South Korea", "Czechia", "South Africa",
+    "Canada", "Bosnia & Herzegovina", "Qatar", "Switzerland",
+    "Brazil", "Morocco", "Scotland", "Haiti",
+    "United States", "Paraguay", "Australia", "Turkey",
+    "Germany", "Curacao", "Ivory Coast", "Ecuador",
+    "Argentina", "Chile", "Norway", "Algeria",
+    "Belgium", "Croatia", "New Zealand", "DR Congo",
+    "Portugal", "Jordan", "Senegal", "Uruguay",
+    "Spain", "Japan", "Netherlands", "Uzbekistan",
+    "France", "Colombia", "Saudi Arabia", "Tunisia",
+    "England", "Ghana", "Panama", "Iran",
+    "Austria", "Egypt", "Cabo Verde", "Sweden"
+  ),
+  Confederation = c(
+    "CONCACAF", "AFC", "UEFA", "CAF",
+    "CONCACAF", "UEFA", "AFC", "UEFA",
+    "CONMEBOL", "CAF", "UEFA", "CONCACAF",
+    "CONCACAF", "CONMEBOL", "AFC", "UEFA",
+    "UEFA", "CONCACAF", "CAF", "CONMEBOL",
+    "CONMEBOL", "CONMEBOL", "UEFA", "CAF",
+    "UEFA", "UEFA", "OFC", "CAF",
+    "UEFA", "AFC", "CAF", "CONMEBOL",
+    "UEFA", "AFC", "UEFA", "AFC",
+    "UEFA", "CONMEBOL", "AFC", "CAF",
+    "UEFA", "CAF", "CONCACAF", "AFC",
+    "UEFA", "CAF", "CAF", "UEFA"
+  ),
+  FIFA_Ranking = c(
+    15, 25, 41, 60,
+    30, 65, 55, 19,
+    6, 8, 43, 83,
+    16, 40, 27, 22,
+    13, 79, 47, 44,
+    2, 36, 21, 34,
+    3, 14, 96, 71,
+    4, 85, 20, 17,
+    1, 18, 7, 73,
+    5, 12, 61, 49,
+    9, 52, 78, 24,
+    10, 38, 68, 35
+  ),
+  Host = c(
+    TRUE, FALSE, FALSE, FALSE,
+    TRUE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    TRUE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE,
+    FALSE, FALSE, FALSE, FALSE
+  ),
+  stringsAsFactors = FALSE
+)
+
+venues_df <- data.frame(
+  City = c(
+    "New York/New Jersey", "Los Angeles", "Dallas", "San Francisco",
+    "Miami", "Atlanta", "Seattle", "Houston",
+    "Philadelphia", "Kansas City", "Boston",
+    "Mexico City", "Guadalajara", "Monterrey",
+    "Toronto", "Vancouver"
+  ),
+  Country = c(rep("USA", 11), rep("Mexico", 3), rep("Canada", 2)),
+  Stadium = c(
+    "MetLife Stadium", "SoFi Stadium", "AT&T Stadium", "Levi's Stadium",
+    "Hard Rock Stadium", "Mercedes-Benz Stadium", "Lumen Field", "NRG Stadium",
+    "Lincoln Financial Field", "Arrowhead Stadium", "Gillette Stadium",
+    "Estadio Azteca", "Estadio Akron", "Estadio BBVA",
+    "BMO Field", "BC Place"
+  ),
+  Capacity = c(
+    82500, 70240, 80000, 68500,
+    65326, 71000, 69000, 72220,
+    69796, 76416, 65878,
+    87523, 49850, 53460,
+    30000, 54500
+  ),
+  Matches = c(9, 8, 9, 8, 8, 8, 7, 7, 7, 7, 6, 5, 4, 4, 5, 4),
+  stringsAsFactors = FALSE
+)
+
+history_df <- data.frame(
+  Year = c(
+    1930, 1934, 1938, 1950, 1954, 1958, 1962, 1966, 1970, 1974,
+    1978, 1982, 1986, 1990, 1994, 1998, 2002, 2006, 2010, 2014,
+    2018, 2022
+  ),
+  Champion = c(
+    "Uruguay", "Italy", "Italy", "Uruguay", "West Germany", "Brazil",
+    "Brazil", "England", "Brazil", "West Germany", "Argentina", "Italy",
+    "Argentina", "West Germany", "Brazil", "France", "Brazil", "Italy",
+    "Spain", "Germany", "France", "Argentina"
+  ),
+  Runner_Up = c(
+    "Argentina", "Czechoslovakia", "Hungary", "Brazil", "Hungary",
+    "Sweden", "Czechoslovakia", "West Germany", "Italy", "Netherlands",
+    "Netherlands", "West Germany", "West Germany", "Argentina", "Italy",
+    "Brazil", "Germany", "France", "Netherlands", "Argentina",
+    "Croatia", "France"
+  ),
+  Host = c(
+    "Uruguay", "Italy", "France", "Brazil", "Switzerland", "Sweden",
+    "Chile", "England", "Mexico", "West Germany", "Argentina", "Spain",
+    "Mexico", "Italy", "USA", "France", "South Korea/Japan", "Germany",
+    "South Africa", "Brazil", "Russia", "Qatar"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# UI ----------------------------------------------------------------------
+
+ui <- fluidPage(
+  theme = shinytheme("flatly"),
+  
+  tags$head(
+    tags$style(HTML("
+      body { background-color: #f4f6f9; }
+      .header-box {
+        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+        padding: 30px;
+        margin-bottom: 25px;
+        border-radius: 0 0 12px 12px;
+        text-align: center;
+      }
+      .info-box {
+        background: white;
+        border-left: 5px solid #2980b9;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.10);
+      }
+      .stat-number {
+        font-size: 2em;
+        font-weight: bold;
+        color: #2980b9;
+      }
+    "))
+  ),
+  
+  div(
+    class = "header-box",
+    h1(
+      style = "color: white; font-size: 2.5em; margin: 0;",
+      "FIFA World Cup 2026 Explorer"
+    ),
+    p(
+      style = "color: #d6d6d6; font-size: 1.1em; margin-top: 8px;",
+      "Explore groups, host venues, and World Cup history"
+    )
+  ),
+  
+  fluidRow(
+    column(3, div(class = "info-box", div(class = "stat-number", "48"), p("Teams"))),
+    column(3, div(class = "info-box", div(class = "stat-number", "12"), p("Groups"))),
+    column(3, div(class = "info-box", div(class = "stat-number", "104"), p("Matches"))),
+    column(3, div(class = "info-box", div(class = "stat-number", "16"), p("Host Cities")))
+  ),
+  
+  br(),
+  
+  tabsetPanel(
+    
+    tabPanel(
+      "Group Explorer",
+      br(),
+      fluidRow(
+        column(
+          3,
+          wellPanel(
+            h4("Filter Teams"),
+            
+            selectInput(
+              "sel_group",
+              "Select Group:",
+              choices = c("All Groups", paste("Group", LETTERS[1:12])),
+              selected = "All Groups"
+            ),
+            
+            checkboxGroupInput(
+              "sel_conf",
+              "Select Confederation:",
+              choices = c("UEFA", "CONMEBOL", "CAF", "AFC", "CONCACAF", "OFC"),
+              selected = c("UEFA", "CONMEBOL", "CAF", "AFC", "CONCACAF", "OFC")
+            ),
+            
+            checkboxInput(
+              "show_hosts",
+              "Show host nations only",
+              value = FALSE
+            ),
+            
+            actionButton(
+              "reset_filters",
+              "Reset Filters",
+              class = "btn-warning"
+            )
+          )
+        ),
+        
+        column(
+          9,
+          h4(textOutput("group_summary_text")),
+          br(),
+          DTOutput("group_table"),
+          br(),
+          plotOutput("ranking_plot", height = "380px")
+        )
+      )
+    ),
+    
+    tabPanel(
+      "Venues",
+      br(),
+      fluidRow(
+        column(
+          3,
+          wellPanel(
+            h4("Filter Venues"),
+            
+            radioButtons(
+              "venue_country",
+              "Host Country:",
+              choices = c("All", "USA", "Mexico", "Canada"),
+              selected = "All"
+            ),
+            
+            sliderInput(
+              "min_capacity",
+              "Minimum Stadium Capacity:",
+              min = 25000,
+              max = 90000,
+              value = 25000,
+              step = 5000,
+              post = " seats"
+            )
+          )
+        ),
+        
+        column(
+          9,
+          h4(textOutput("venue_text")),
+          br(),
+          plotOutput("venue_plot", height = "400px"),
+          br(),
+          DTOutput("venue_table")
+        )
+      )
+    ),
+    
+    tabPanel(
+      "World Cup History",
+      br(),
+      fluidRow(
+        column(
+          3,
+          wellPanel(
+            h4("Filter History"),
+            
+            sliderInput(
+              "year_range",
+              "Year Range:",
+              min = 1930,
+              max = 2022,
+              value = c(1930, 2022),
+              step = 4,
+              sep = ""
+            ),
+            
+            selectInput(
+              "title_sort",
+              "Sort Champions By:",
+              choices = c(
+                "Most Titles" = "desc",
+                "Fewest Titles" = "asc",
+                "Alphabetical" = "alpha"
+              ),
+              selected = "desc"
+            )
+          )
+        ),
+        
+        column(
+          9,
+          h4(textOutput("history_text")),
+          br(),
+          plotOutput("titles_plot", height = "380px"),
+          br(),
+          DTOutput("history_table")
+        )
+      )
+    )
+  )
+)
+
+# SERVER ------------------------------------------------------------------
+
+server <- function(input, output, session) {
+  
+  observeEvent(input$reset_filters, {
+    updateSelectInput(session, "sel_group", selected = "All Groups")
+    updateCheckboxGroupInput(
+      session,
+      "sel_conf",
+      selected = c("UEFA", "CONMEBOL", "CAF", "AFC", "CONCACAF", "OFC")
+    )
+    updateCheckboxInput(session, "show_hosts", value = FALSE)
+  })
+  
+  filtered_teams <- reactive({
+    df <- teams_df
+    
+    if (input$sel_group != "All Groups") {
+      selected_group <- gsub("Group ", "", input$sel_group)
+      df <- df[df$Group == selected_group, ]
+    }
+    
+    df <- df[df$Confederation %in% input$sel_conf, ]
+    
+    if (input$show_hosts == TRUE) {
+      df <- df[df$Host == TRUE, ]
+    }
+    
+    df
+  })
+  
+  output$group_summary_text <- renderText({
+    df <- filtered_teams()
+    
+    if (nrow(df) == 0) {
+      return("No teams match your selected filters.")
+    }
+    
+    paste0(
+      "Showing ", nrow(df), " team(s) across ",
+      length(unique(df$Group)), " group(s). Average FIFA ranking: ",
+      round(mean(df$FIFA_Ranking), 1), "."
+    )
+  })
+  
+  output$group_table <- renderDT({
+    df <- filtered_teams()
+    
+    if (nrow(df) == 0) {
+      return(datatable(data.frame(Message = "No teams match your filters."), rownames = FALSE))
+    }
+    
+    df <- df[, c("Group", "Team", "Confederation", "FIFA_Ranking", "Host")]
+    df$Host <- ifelse(df$Host, "Yes", "No")
+    colnames(df) <- c("Group", "Team", "Confederation", "FIFA Ranking", "Host Nation")
+    
+    datatable(
+      df,
+      options = list(pageLength = 12, dom = "ftp"),
+      rownames = FALSE
+    )
+  })
+  
+  output$ranking_plot <- renderPlot({
+    df <- filtered_teams()
+    
+    validate(
+      need(nrow(df) > 0, "No teams match your selected filters.")
+    )
+    
+    df$Team <- factor(df$Team, levels = df$Team[order(df$FIFA_Ranking)])
+    
+    ggplot(df, aes(x = Team, y = FIFA_Ranking, fill = Confederation)) +
+      geom_col(color = "white", width = 0.7) +
+      coord_flip() +
+      scale_y_reverse(name = "FIFA Ranking: lower is better") +
+      labs(
+        title = "FIFA Rankings of Selected Teams",
+        x = NULL,
+        fill = "Confederation"
+      ) +
+      theme_minimal(base_size = 13) +
+      theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold")
+      )
+  })
+  
+  filtered_venues <- reactive({
+    df <- venues_df
+    
+    if (input$venue_country != "All") {
+      df <- df[df$Country == input$venue_country, ]
+    }
+    
+    df <- df[df$Capacity >= input$min_capacity, ]
+    
+    df
+  })
+  
+  output$venue_text <- renderText({
+    df <- filtered_venues()
+    
+    if (nrow(df) == 0) {
+      return("No venues match your selected filters.")
+    }
+    
+    paste0(
+      nrow(df), " venue(s) match your filters. Total capacity: ",
+      comma(sum(df$Capacity)), " seats. Total matches hosted: ",
+      sum(df$Matches), "."
+    )
+  })
+  
+  output$venue_plot <- renderPlot({
+    df <- filtered_venues()
+    
+    validate(
+      need(nrow(df) > 0, "No venues match your selected filters.")
+    )
+    
+    df$Stadium <- factor(df$Stadium, levels = df$Stadium[order(df$Capacity)])
+    
+    ggplot(df, aes(x = Stadium, y = Capacity, fill = Country)) +
+      geom_col(color = "white", width = 0.7) +
+      geom_text(aes(label = comma(Capacity)), hjust = -0.1, size = 3.5) +
+      coord_flip() +
+      scale_y_continuous(
+        labels = comma,
+        limits = c(0, max(df$Capacity) * 1.18)
+      ) +
+      labs(
+        title = "Stadium Capacity by Host Country",
+        x = NULL,
+        y = "Capacity",
+        fill = "Country"
+      ) +
+      theme_minimal(base_size = 13) +
+      theme(
+        legend.position = "bottom",
+        plot.title = element_text(face = "bold")
+      )
+  })
+  
+  output$venue_table <- renderDT({
+    df <- filtered_venues()
+    
+    if (nrow(df) == 0) {
+      return(datatable(data.frame(Message = "No venues match your filters."), rownames = FALSE))
+    }
+    
+    df$Capacity <- comma(df$Capacity)
+    colnames(df) <- c("City", "Country", "Stadium", "Capacity", "Matches Hosted")
+    
+    datatable(
+      df,
+      options = list(pageLength = 8, dom = "ftp"),
+      rownames = FALSE
+    )
+  })
+  
+  filtered_history <- reactive({
+    history_df[
+      history_df$Year >= input$year_range[1] &
+        history_df$Year <= input$year_range[2],
+    ]
+  })
+  
+  sorted_titles <- reactive({
+    df <- filtered_history()
+    
+    title_counts <- as.data.frame(table(df$Champion))
+    colnames(title_counts) <- c("Country", "Titles")
+    
+    if (input$title_sort == "desc") {
+      title_counts <- title_counts[order(-title_counts$Titles), ]
+    } else if (input$title_sort == "asc") {
+      title_counts <- title_counts[order(title_counts$Titles), ]
+    } else {
+      title_counts <- title_counts[order(as.character(title_counts$Country)), ]
+    }
+    
+    title_counts
+  })
+  
+  output$history_text <- renderText({
+    df <- filtered_history()
+    
+    if (nrow(df) == 0) {
+      return("No tournaments match this year range.")
+    }
+    
+    most_successful <- names(sort(table(df$Champion), decreasing = TRUE))[1]
+    
+    paste0(
+      "From ", input$year_range[1], " to ", input$year_range[2],
+      ": ", nrow(df), " tournaments, ",
+      length(unique(df$Champion)), " different champions. Most successful: ",
+      most_successful, "."
+    )
+  })
+  
+  output$titles_plot <- renderPlot({
+    df <- sorted_titles()
+    
+    validate(
+      need(nrow(df) > 0, "No title data available for this year range.")
+    )
+    
+    df$Country <- factor(df$Country, levels = df$Country)
+    
+    ggplot(df, aes(x = Country, y = Titles, fill = Titles)) +
+      geom_col(color = "white", width = 0.7) +
+      geom_text(aes(label = Titles), vjust = -0.5, fontface = "bold", size = 4) +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+      labs(
+        title = "World Cup Titles by Country",
+        x = NULL,
+        y = "Number of Titles"
+      ) +
+      theme_minimal(base_size = 13) +
+      theme(
+        legend.position = "none",
+        axis.text.x = element_text(angle = 35, hjust = 1),
+        plot.title = element_text(face = "bold")
+      )
+  })
+  
+  output$history_table <- renderDT({
+    df <- filtered_history()
+    
+    if (nrow(df) == 0) {
+      return(datatable(data.frame(Message = "No tournaments match your filters."), rownames = FALSE))
+    }
+    
+    df <- df[, c("Year", "Champion", "Runner_Up", "Host")]
+    colnames(df) <- c("Year", "Champion", "Runner-Up", "Host Country")
+    
+    datatable(
+      df,
+      options = list(
+        pageLength = 8,
+        dom = "ftp",
+        order = list(list(0, "desc"))
+      ),
+      rownames = FALSE
+    )
+  })
+}
+
+# RUN APP -----------------------------------------------------------------
+
+shinyApp(ui = ui, server = server)
